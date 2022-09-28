@@ -40,7 +40,38 @@ function cached() {
   [[ $CACHED_STACK == $STACK ]]
 }
 
+function download_jemalloc() {
+  url="https://github.com/gaffneyc/heroku-buildpack-jemalloc/releases/download/$STACK/jemalloc-$version.tar.bz2"
+
+  # Disable exit on command failure so we can provide better error messages
+  set +e
+
+  echo "       jemalloc: Fetching $url"
+  status=$(curl -sL -f  -w "%{http_code}" -o /tmp/jemalloc.tar.bz2 $url)
+
+  if [[ $status -ge 300 ]]; then
+    echo " !     jemalloc: Server returned HTTP $status"
+    exit 1
+  fi
+
+  # Reenable exit on failure
+  set -e
+
+  mkdir -p $bundle
+  tar -xj -f /tmp/jemalloc.tar.bz2 -C $bundle
+
+  # Store the stack version (e.g. heroku-20) that was downloaded to force a
+  # redownload should the stack change.
+  echo "$STACK" > "$bundle/.stack"
+}
+
 echo "-----> jemalloc: Vendoring $version"
+
+# Check if this version of jemalloc is in the cache and download it if it
+# doesn't exist.
+if ! cached; then
+  download_jemalloc
+fi
 
 mkdir -p $dest
 cp -r $bundle -T $dest/
